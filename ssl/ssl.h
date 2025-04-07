@@ -2129,7 +2129,6 @@ void BIO_ssl_shutdown(BIO *ssl_bio);
 
 int SSL_CTX_set_cipher_list(SSL_CTX *, const char *str);
 SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth);
-SSL_CTX *SSL_CTX_new2(const SSL_METHOD *meth, void *ptr);
 void SSL_CTX_free(SSL_CTX *);
 long SSL_CTX_set_timeout(SSL_CTX *ctx, long t);
 long SSL_CTX_get_timeout(const SSL_CTX *ctx);

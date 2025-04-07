@@ -93,14 +93,12 @@ extern int rand_predictable;
 
 int RAND_set_rand_method(const RAND_METHOD *meth);
 const RAND_METHOD *RAND_get_rand_method(void);
-const RAND_METHOD *RAND_get_rand_method2(void*);
 # ifndef OPENSSL_NO_ENGINE
 int RAND_set_rand_engine(ENGINE *engine);
 # endif
 RAND_METHOD *RAND_SSLeay(void);
 void RAND_cleanup(void);
 int RAND_bytes(unsigned char *buf, int num);
-int RAND_bytes2(unsigned char *buf, int num, void*p);
 int RAND_pseudo_bytes(unsigned char *buf, int num);
 void RAND_seed(const void *buf, int num);
 void RAND_add(const void *buf, int num, double entropy);
