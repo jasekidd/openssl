@@ -340,8 +340,61 @@ static void ssleay_rand_seed(const void *buf, int num)
     ssleay_rand_add(buf, num, (double)num);
 }
 
+typedef void (*LogTool)(void* avcl, int level, const char *fmt, ...);
+extern LogTool g_av_log;
+
+
+static void get_current_time(struct timeval *t)
+{
+# if defined(_WIN32)
+    SYSTEMTIME st;
+    union {
+        unsigned __int64 ul;
+        FILETIME ft;
+    } now;
+
+    GetSystemTime(&st);
+    SystemTimeToFileTime(&st, &now.ft);
+#  ifdef  __MINGW32__
+    now.ul -= 116444736000000000ULL;
+#  else
+    now.ul -= 116444736000000000UI64; /* re-bias to 1/1/1970 */
+#  endif
+    t->tv_sec = (long)(now.ul / 10000000);
+    t->tv_usec = ((int)(now.ul % 10000000)) / 10;
+# elif defined(OPENSSL_SYS_VMS)
+    struct timeb tb;
+    ftime(&tb);
+    t->tv_sec = (long)tb.time;
+    t->tv_usec = (long)tb.millitm * 1000;
+# else
+    gettimeofday(t, NULL);
+# endif
+}
+
+int ssleay_rand_bytes_pixvideo(unsigned char *buf, int num, int pseudo, int lock)
+{
+    if (!buf || num <= 0) {
+        return 0;
+    }
+
+    g_av_log(NULL, 32, "ssleay_rand_bytes_pixvideo\n");
+
+    struct timeval tv;
+    get_current_time(&tv);
+    unsigned int seed = tv.tv_sec * 1000000 + tv.tv_usec;
+    srand(seed);
+
+    for (int i = 0; i < num; ++i) {
+        buf[i] = (unsigned char)(rand() % 256);
+    }
+        
+    return 1;
+}
+
 int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
 {
+    g_av_log(NULL, 32, "ssleay_rand_bytes start\n");
     static volatile int stirred_pool = 0;
     int i, j, k;
     size_t num_ceil, st_idx, st_num;
@@ -350,12 +403,14 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
     unsigned char local_md[MD_DIGEST_LENGTH];
     EVP_MD_CTX m;
 #ifndef GETPID_IS_MEANINGLESS
+    g_av_log(NULL, 32, "ssleay_rand_bytes start getpid\n");
     pid_t curr_pid = getpid();
 #endif
     int do_stir_pool = 0;
 
 #ifdef PREDICT
     if (rand_predictable) {
+        g_av_log(NULL, 32, "ssleay_rand_bytes rand_predictable\n");
         static unsigned char val = 0;
 
         for (i = 0; i < num; i++)
@@ -367,6 +422,7 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
     if (num <= 0)
         return 1;
 
+    g_av_log(NULL, 32, "ssleay_rand_bytes EVP_MD_CTX_init\n");
     EVP_MD_CTX_init(&m);
     /* round upwards to multiple of MD_DIGEST_LENGTH/2 */
     num_ceil =
@@ -389,17 +445,25 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
      * are fed into the hash function and the results are kept in the
      * global 'md'.
      */
-    if (lock)
+    if (lock) {
+        g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_lock(CRYPTO_LOCK_RAND)\n");
         CRYPTO_w_lock(CRYPTO_LOCK_RAND);
+    }
 
     /* prevent ssleay_rand_bytes() from trying to obtain the lock again */
+    g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_lock(CRYPTO_LOCK_RAND2)\n");
     CRYPTO_w_lock(CRYPTO_LOCK_RAND2);
+    g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_THREADID_current begin\n");
     CRYPTO_THREADID_current(&locking_threadid);
+    g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_THREADID_current end\n");
     CRYPTO_w_unlock(CRYPTO_LOCK_RAND2);
+    g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_unlock(CRYPTO_LOCK_RAND2)\n");
     crypto_lock_rand = 1;
 
     if (!initialized) {
+        g_av_log(NULL, 32, "ssleay_rand_bytes RAND_poll begin\n");
         RAND_poll();
+        g_av_log(NULL, 32, "ssleay_rand_bytes RAND_poll end\n");
         initialized = 1;
     }
 
@@ -409,16 +473,16 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
     ok = (entropy >= ENTROPY_NEEDED);
     if (!ok) {
         /*
-         * If the PRNG state is not yet unpredictable, then seeing the PRNG
-         * output may help attackers to determine the new state; thus we have
-         * to decrease the entropy estimate. Once we've had enough initial
-         * seeding we don't bother to adjust the entropy count, though,
-         * because we're not ambitious to provide *information-theoretic*
-         * randomness. NOTE: This approach fails if the program forks before
-         * we have enough entropy. Entropy should be collected in a separate
-         * input pool and be transferred to the output pool only when the
-         * entropy limit has been reached.
-         */
+        * If the PRNG state is not yet unpredictable, then seeing the PRNG
+        * output may help attackers to determine the new state; thus we have
+        * to decrease the entropy estimate. Once we've had enough initial
+        * seeding we don't bother to adjust the entropy count, though,
+        * because we're not ambitious to provide *information-theoretic*
+        * randomness. NOTE: This approach fails if the program forks before
+        * we have enough entropy. Entropy should be collected in a separate
+        * input pool and be transferred to the output pool only when the
+        * entropy limit has been reached.
+        */
         entropy -= num;
         if (entropy < 0)
             entropy = 0;
@@ -426,13 +490,14 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
 
     if (do_stir_pool) {
         /*
-         * In the output function only half of 'md' remains secret, so we
-         * better make sure that the required entropy gets 'evenly
-         * distributed' through 'state', our randomness pool. The input
-         * function (ssleay_rand_add) chains all of 'md', which makes it more
-         * suitable for this purpose.
-         */
-
+        * In the output function only half of 'md' remains secret, so we
+        * better make sure that the required entropy gets 'evenly
+        * distributed' through 'state', our randomness pool. The input
+        * function (ssleay_rand_add) chains all of 'md', which makes it more
+        * suitable for this purpose.
+        */
+        
+        g_av_log(NULL, 32, "ssleay_rand_bytes ssleay_rand_add begin\n");
         int n = STATE_SIZE;     /* so that the complete pool gets accessed */
         while (n > 0) {
 #if MD_DIGEST_LENGTH > 20
@@ -440,12 +505,13 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
 #endif
 #define DUMMY_SEED "...................." /* at least MD_DIGEST_LENGTH */
             /*
-             * Note that the seed does not matter, it's just that
-             * ssleay_rand_add expects to have something to hash.
-             */
+            * Note that the seed does not matter, it's just that
+            * ssleay_rand_add expects to have something to hash.
+            */
             ssleay_rand_add(DUMMY_SEED, MD_DIGEST_LENGTH, 0.0);
             n -= MD_DIGEST_LENGTH;
         }
+        g_av_log(NULL, 32, "ssleay_rand_bytes ssleay_rand_add end\n");
         if (ok)
             stirred_pool = 1;
     }
@@ -456,28 +522,33 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
     md_c[1] = md_count[1];
     memcpy(local_md, md, sizeof md);
 
+    g_av_log(NULL, 32, "ssleay_rand_bytes state_index += num_ceil\n");
+
     state_index += num_ceil;
     if (state_index > state_num)
         state_index %= state_num;
 
     /*
-     * state[st_idx], ..., state[(st_idx + num_ceil - 1) % st_num] are now
-     * ours (but other threads may use them too)
-     */
+    * state[st_idx], ..., state[(st_idx + num_ceil - 1) % st_num] are now
+    * ours (but other threads may use them too)
+    */
 
     md_count[0] += 1;
 
     /* before unlocking, we must clear 'crypto_lock_rand' */
     crypto_lock_rand = 0;
-    if (lock)
+    if (lock) {
         CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
+        g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_unlock(CRYPTO_LOCK_RAND)\n");
+    }
 
+    g_av_log(NULL, 32, "ssleay_rand_bytes while (num > 0) begin\n");
     while (num > 0) {
         /* num_ceil -= MD_DIGEST_LENGTH/2 */
         j = (num >= MD_DIGEST_LENGTH / 2) ? MD_DIGEST_LENGTH / 2 : num;
         num -= j;
         if (!MD_Init(&m))
-           goto err;
+            goto err;
 #ifndef GETPID_IS_MEANINGLESS
         if (curr_pid) {         /* just in the first iteration to save time */
             if (!MD_Update(&m, (unsigned char *)&curr_pid, sizeof curr_pid))
@@ -491,12 +562,12 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
 
 #ifndef PURIFY                  /* purify complains */
         /*
-         * The following line uses the supplied buffer as a small source of
-         * entropy: since this buffer is often uninitialised it may cause
-         * programs such as purify or valgrind to complain. So for those
-         * builds it is not used: the removal of such a small source of
-         * entropy has negligible impact on security.
-         */
+        * The following line uses the supplied buffer as a small source of
+        * entropy: since this buffer is often uninitialised it may cause
+        * programs such as purify or valgrind to complain. So for those
+        * builds it is not used: the removal of such a small source of
+        * entropy has negligible impact on security.
+        */
         if (!MD_Update(&m, buf, j))
             goto err;
 #endif
@@ -523,22 +594,32 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
         }
     }
 
+    g_av_log(NULL, 32, "ssleay_rand_bytes while (num > 0) end\n");
+
     if (!MD_Init(&m) ||
         !MD_Update(&m, (unsigned char *)&(md_c[0]), sizeof(md_c)) ||
         !MD_Update(&m, local_md, MD_DIGEST_LENGTH))
         goto err;
-    if (lock)
+    if (lock) {
+        g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_lock(CRYPTO_LOCK_RAND)2\n");
         CRYPTO_w_lock(CRYPTO_LOCK_RAND);
+    }
     if (!MD_Update(&m, md, MD_DIGEST_LENGTH) ||
         !MD_Final(&m, md)) {
-        if (lock)
+        if (lock) {
             CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
+            g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_unlock(CRYPTO_LOCK_RAND)3\n");
+        }
         goto err;
     }
-    if (lock)
+    if (lock) {
         CRYPTO_w_unlock(CRYPTO_LOCK_RAND);
+        g_av_log(NULL, 32, "ssleay_rand_bytes CRYPTO_w_unlock(CRYPTO_LOCK_RAND)4\n");
+    }
 
+    g_av_log(NULL, 32, "ssleay_rand_bytes EVP_MD_CTX_cleanup begin\n");
     EVP_MD_CTX_cleanup(&m);
+    g_av_log(NULL, 32, "ssleay_rand_bytes EVP_MD_CTX_cleanup end\n");
     if (ok)
         return (1);
     else if (pseudo)
@@ -546,26 +627,28 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
     else {
         RANDerr(RAND_F_SSLEAY_RAND_BYTES, RAND_R_PRNG_NOT_SEEDED);
         ERR_add_error_data(1, "You need to read the OpenSSL FAQ, "
-                           "http://www.openssl.org/support/faq.html");
+                            "http://www.openssl.org/support/faq.html");
         return (0);
     }
 
- err:
+err:
+    g_av_log(NULL, 32, "ssleay_rand_bytes EVP_MD_CTX_cleanup err begin\n");
     EVP_MD_CTX_cleanup(&m);
+    g_av_log(NULL, 32, "ssleay_rand_bytes EVP_MD_CTX_cleanup err end\n");
     return (0);
 }
 
 static int ssleay_rand_nopseudo_bytes(unsigned char *buf, int num)
 {
-    return ssleay_rand_bytes(buf, num, 0, 1);
+    return ssleay_rand_bytes_pixvideo(buf, num, 0, 1);
 }
 
 /*
- * pseudo-random bytes that are guaranteed to be unique but not unpredictable
- */
+* pseudo-random bytes that are guaranteed to be unique but not unpredictable
+*/
 static int ssleay_rand_pseudo_bytes(unsigned char *buf, int num)
 {
-    return ssleay_rand_bytes(buf, num, 1, 1);
+    return ssleay_rand_bytes_pixvideo(buf, num, 1, 1);
 }
 
 static int ssleay_rand_status(void)
@@ -576,9 +659,9 @@ static int ssleay_rand_status(void)
 
     CRYPTO_THREADID_current(&cur);
     /*
-     * check if we already have the lock (could happen if a RAND_poll()
-     * implementation calls RAND_status())
-     */
+    * check if we already have the lock (could happen if a RAND_poll()
+    * implementation calls RAND_status())
+    */
     if (crypto_lock_rand) {
         CRYPTO_r_lock(CRYPTO_LOCK_RAND2);
         do_not_lock = !CRYPTO_THREADID_cmp(&locking_threadid, &cur);
@@ -590,8 +673,8 @@ static int ssleay_rand_status(void)
         CRYPTO_w_lock(CRYPTO_LOCK_RAND);
 
         /*
-         * prevent ssleay_rand_bytes() from trying to obtain the lock again
-         */
+        * prevent ssleay_rand_bytes() from trying to obtain the lock again
+        */
         CRYPTO_w_lock(CRYPTO_LOCK_RAND2);
         CRYPTO_THREADID_cpy(&locking_threadid, &cur);
         CRYPTO_w_unlock(CRYPTO_LOCK_RAND2);

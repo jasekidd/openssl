@@ -88,6 +88,46 @@ int RAND_set_rand_method(const RAND_METHOD *meth)
     default_RAND_meth = meth;
     return 1;
 }
+typedef void (*LogTool2)(void* avcl, int level, const char *fmt, ...);
+const RAND_METHOD *RAND_get_rand_method2(void*ptr)
+{
+    LogTool2 av_log = ptr;
+    av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg1\n");
+    if (!default_RAND_meth) {
+#ifndef OPENSSL_NO_ENGINE
+av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg2\n");
+        ENGINE *e = ENGINE_get_default_RAND();
+        av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg3\n");
+        if (e) {
+            av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg4\n");
+            default_RAND_meth = ENGINE_get_RAND(e);
+            av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg5\n");
+            if (!default_RAND_meth) {
+                av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg6\n");
+                ENGINE_finish(e);
+                av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg7\n");
+                e = NULL;
+                av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg8\n");
+            }
+        }
+        av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg9\n");
+        if (e)
+        {
+            av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg10\n");
+            funct_ref = e;
+        }
+        else
+#endif
+        {
+            av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg11\n");
+            default_RAND_meth = RAND_SSLeay();
+            av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg12\n");
+        }
+
+    }
+    av_log(NULL, 32, "kiddpeng test RAND_get_rand_method2 beg13\n");
+    return default_RAND_meth;
+}
 
 const RAND_METHOD *RAND_get_rand_method(void)
 {
@@ -150,6 +190,22 @@ void RAND_add(const void *buf, int num, double entropy)
     const RAND_METHOD *meth = RAND_get_rand_method();
     if (meth && meth->add)
         meth->add(buf, num, entropy);
+}
+
+
+int RAND_bytes2(unsigned char *buf, int num, void*ptr)
+{    LogTool2 av_log = ptr;
+    av_log(NULL, 32, "kiddpeng test RAND_bytes2 beg1\n");
+    const RAND_METHOD *meth = RAND_get_rand_method2(av_log);
+    av_log(NULL, 32, "kiddpeng test RAND_bytes2 beg2\n");
+    if (meth && meth->bytes)
+    {
+        av_log(NULL, 32, "kiddpeng test RAND_bytes2 beg3\n");
+        return meth->bytes(buf, num);
+    }
+    av_log(NULL, 32, "kiddpeng test RAND_bytes2 beg4\n");
+
+    return (-1);
 }
 
 int RAND_bytes(unsigned char *buf, int num)

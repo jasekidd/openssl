@@ -1881,31 +1881,53 @@ static int ssl_session_cmp(const SSL_SESSION *a, const SSL_SESSION *b)
 static IMPLEMENT_LHASH_HASH_FN(ssl_session, SSL_SESSION)
 static IMPLEMENT_LHASH_COMP_FN(ssl_session, SSL_SESSION)
 
+//extern void av_log(void* avcl, int level, const char *fmt, ...);
+typedef void (*LogTool)(void* avcl, int level, const char *fmt, ...);
 SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
 {
+    return SSL_CTX_new2(meth, NULL);
+}
+
+LogTool g_av_log = NULL;
+
+SSL_CTX *SSL_CTX_new2(const SSL_METHOD *meth, void *ptr)
+{
+    LogTool av_log = ptr;
+    g_av_log = av_log;
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new1\n");
+    
     SSL_CTX *ret = NULL;
 
     if (meth == NULL) {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new2\n");
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_NULL_SSL_METHOD_PASSED);
         return (NULL);
     }
 #ifdef OPENSSL_FIPS
+av_log(NULL, 32, "kiddpeng test SSL_CTX_new3\n");
     if (FIPS_mode() && (meth->version < TLS1_VERSION)) {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new4\n");
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_ONLY_TLS_ALLOWED_IN_FIPS_MODE);
         return NULL;
     }
 #endif
-
+av_log(NULL, 32, "kiddpeng test SSL_CTX_new5\n");
     if (SSL_get_ex_data_X509_STORE_CTX_idx() < 0) {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new6\n");
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_X509_VERIFICATION_SETUP_PROBLEMS);
         goto err;
     }
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new7\n");
     ret = (SSL_CTX *)OPENSSL_malloc(sizeof(SSL_CTX));
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new8\n");
     if (ret == NULL)
+    {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new9\n");
         goto err;
-
+    }
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new10\n");
     memset(ret, 0, sizeof(SSL_CTX));
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new11\n");
     ret->method = meth;
 
     ret->cert_store = NULL;
@@ -1913,17 +1935,17 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
     ret->session_cache_size = SSL_SESSION_CACHE_MAX_SIZE_DEFAULT;
     ret->session_cache_head = NULL;
     ret->session_cache_tail = NULL;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new12\n");
     /* We take the system default */
     ret->session_timeout = meth->get_timeout();
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new13\n");
     ret->new_session_cb = 0;
     ret->remove_session_cb = 0;
     ret->get_session_cb = 0;
     ret->generate_session_id = 0;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new14\n");
     memset((char *)&ret->stats, 0, sizeof(ret->stats));
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new15\n");
     ret->references = 1;
     ret->quiet_shutdown = 0;
 
@@ -1944,78 +1966,92 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
     ret->msg_callback = 0;
     ret->msg_callback_arg = NULL;
     ret->verify_mode = SSL_VERIFY_NONE;
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new16\n");
 #if 0
     ret->verify_depth = -1;     /* Don't impose a limit (but x509_lu.c does) */
 #endif
     ret->sid_ctx_length = 0;
     ret->default_verify_callback = NULL;
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new17\n");
     if ((ret->cert = ssl_cert_new()) == NULL)
+    {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new18\n");
         goto err;
+    }
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new19\n");
 
     ret->default_passwd_callback = 0;
     ret->default_passwd_callback_userdata = NULL;
     ret->client_cert_cb = 0;
     ret->app_gen_cookie_cb = 0;
     ret->app_verify_cookie_cb = 0;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new20\n");
     ret->sessions = lh_SSL_SESSION_new();
     if (ret->sessions == NULL)
         goto err;
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new1\n");
     ret->cert_store = X509_STORE_new();
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new21\n");
     if (ret->cert_store == NULL)
         goto err;
-
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new22\n");
     ssl_create_cipher_list(ret->method,
                            &ret->cipher_list, &ret->cipher_list_by_id,
                            meth->version ==
                            SSL2_VERSION ? "SSLv2" : SSL_DEFAULT_CIPHER_LIST,
                            ret->cert);
+                           av_log(NULL, 32, "kiddpeng test SSL_CTX_new1\n");
     if (ret->cipher_list == NULL || sk_SSL_CIPHER_num(ret->cipher_list) <= 0) {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new23\n");
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_LIBRARY_HAS_NO_CIPHERS);
         goto err2;
     }
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new24\n");
     ret->param = X509_VERIFY_PARAM_new();
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new25\n");
     if (!ret->param)
         goto err;
-
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new26\n");
     if ((ret->rsa_md5 = EVP_get_digestbyname("ssl2-md5")) == NULL) {
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_UNABLE_TO_LOAD_SSL2_MD5_ROUTINES);
         goto err2;
     }
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new27\n");
     if ((ret->md5 = EVP_get_digestbyname("ssl3-md5")) == NULL) {
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_UNABLE_TO_LOAD_SSL3_MD5_ROUTINES);
         goto err2;
     }
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new28\n");
     if ((ret->sha1 = EVP_get_digestbyname("ssl3-sha1")) == NULL) {
         SSLerr(SSL_F_SSL_CTX_NEW, SSL_R_UNABLE_TO_LOAD_SSL3_SHA1_ROUTINES);
         goto err2;
     }
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new29\n");
     if ((ret->client_CA = sk_X509_NAME_new_null()) == NULL)
         goto err;
-
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new30\n");
     CRYPTO_new_ex_data(CRYPTO_EX_INDEX_SSL_CTX, ret, &ret->ex_data);
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new31\n");
     ret->extra_certs = NULL;
     /* No compression for DTLS */
     if (!(meth->ssl3_enc->enc_flags & SSL_ENC_FLAG_DTLS))
         ret->comp_methods = SSL_COMP_get_compression_methods();
-
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new32\n");
     ret->max_send_fragment = SSL3_RT_MAX_PLAIN_LENGTH;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new331\n");
 #ifndef OPENSSL_NO_TLSEXT
+av_log(NULL, 32, "kiddpeng test SSL_CTX_new3311\n");
     ret->tlsext_servername_callback = 0;
     ret->tlsext_servername_arg = NULL;
     /* Setup RFC4507 ticket keys */
-    if ((RAND_bytes(ret->tlsext_tick_key_name, 16) <= 0)
-        || (RAND_bytes(ret->tlsext_tick_hmac_key, 16) <= 0)
-        || (RAND_bytes(ret->tlsext_tick_aes_key, 16) <= 0))
+    if ((RAND_bytes2(ret->tlsext_tick_key_name, 16,av_log) <= 0)
+        || (RAND_bytes2(ret->tlsext_tick_hmac_key, 16,av_log) <= 0)
+        || (RAND_bytes2(ret->tlsext_tick_aes_key, 16,av_log) <= 0))
         ret->options |= SSL_OP_NO_TICKET;
 
     ret->tlsext_status_cb = 0;
     ret->tlsext_status_arg = NULL;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new34\n");
 # ifndef OPENSSL_NO_NEXTPROTONEG
     ret->next_protos_advertised_cb = 0;
     ret->next_proto_select_cb = 0;
@@ -2027,9 +2063,12 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
     ret->psk_server_callback = NULL;
 #endif
 #ifndef OPENSSL_NO_SRP
+av_log(NULL, 32, "kiddpeng test SSL_CTX_new35\n");
     SSL_CTX_SRP_CTX_init(ret);
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new36\n");
 #endif
 #ifndef OPENSSL_NO_BUF_FREELISTS
+av_log(NULL, 32, "kiddpeng test SSL_CTX_new37\n");
     ret->freelist_max_len = SSL_MAX_BUF_FREELIST_LEN_DEFAULT;
     ret->rbuf_freelist = OPENSSL_malloc(sizeof(SSL3_BUF_FREELIST));
     if (!ret->rbuf_freelist)
@@ -2043,6 +2082,7 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
     ret->wbuf_freelist->chunklen = 0;
     ret->wbuf_freelist->len = 0;
     ret->wbuf_freelist->head = NULL;
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new38\n");
 #endif
 #ifndef OPENSSL_NO_ENGINE
     ret->client_cert_engine = NULL;
@@ -2051,15 +2091,18 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
 #  define eng_str(x)      eng_strx(x)
     /* Use specific client engine automatically... ignore errors */
     {
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new39\n");
         ENGINE *eng;
         eng = ENGINE_by_id(eng_str(OPENSSL_SSL_CLIENT_ENGINE_AUTO));
         if (!eng) {
+            av_log(NULL, 32, "kiddpeng test SSL_CTX_new40\n");
             ERR_clear_error();
             ENGINE_load_builtin_engines();
             eng = ENGINE_by_id(eng_str(OPENSSL_SSL_CLIENT_ENGINE_AUTO));
         }
         if (!eng || !SSL_CTX_set_client_cert_engine(ret, eng))
             ERR_clear_error();
+            av_log(NULL, 32, "kiddpeng test SSL_CTX_new41\n");
     }
 # endif
 #endif
@@ -2075,13 +2118,16 @@ SSL_CTX *SSL_CTX_new(const SSL_METHOD *meth)
      * SSL_clear_options().
      */
     ret->options |= SSL_OP_NO_SSLv2;
-
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new42\n");
     return (ret);
  err:
     SSLerr(SSL_F_SSL_CTX_NEW, ERR_R_MALLOC_FAILURE);
+    av_log(NULL, 32, "kiddpeng test SSL_CTX_new43\n");
  err2:
+ av_log(NULL, 32, "kiddpeng test SSL_CTX_new44\n");
     if (ret != NULL)
         SSL_CTX_free(ret);
+        av_log(NULL, 32, "kiddpeng test SSL_CTX_new45\n");
     return (NULL);
 }
 

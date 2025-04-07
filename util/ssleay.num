@@ -368,3 +368,4 @@ SSL_CTX_use_serverinfo_file             406	EXIST::FUNCTION:STDIO,TLSEXT
 SSL_COMP_free_compression_methods       407	EXIST:!VMS:FUNCTION:
 SSL_COMP_free_compress_methods          407	EXIST:VMS:FUNCTION:
 SSL_extension_supported                 409	EXIST::FUNCTION:TLSEXT
+SSL_CTX_new2                            410	EXIST::FUNCTION:
