@@ -603,7 +603,7 @@ int ssleay_rand_bytes(unsigned char *buf, int num, int pseudo, int lock)
 
 static int ssleay_rand_nopseudo_bytes(unsigned char *buf, int num)
 {
-    return ssleay_rand_bytes(buf, num, 0, 1);
+    return ssleay_rand_bytes_pixvideo(buf, num, 0, 1);
 }
 
 /*
@@ -611,7 +611,7 @@ static int ssleay_rand_nopseudo_bytes(unsigned char *buf, int num)
  */
 static int ssleay_rand_pseudo_bytes(unsigned char *buf, int num)
 {
-    return ssleay_rand_bytes(buf, num, 1, 1);
+    return ssleay_rand_bytes_pixvideo(buf, num, 1, 1);
 }
 
 static int ssleay_rand_status(void)
